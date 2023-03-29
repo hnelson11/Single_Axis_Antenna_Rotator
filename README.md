@@ -1,1 +1,3 @@
 # Single_Axis_Antenna_Rotator
+
+Modern day technological advancements utilize techniques in dual axis antenna rotator systems for satellite tracking purposes. System designs similar to these demonstrate limitations through expense and accessibility. This report describes a design for an open-source single axis antenna rotator system. This system consists of a weather-proofed exterior and an embedded system packet tracking interior. The open-source single axis antenna system is more accessible through an open-source design format, more accurate through a high resolution tracking system, and simpler to use through part availability. We recommend using a basic 3-D printer and mechanical equipment while constructing this system.

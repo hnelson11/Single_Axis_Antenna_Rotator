@@ -118,9 +118,9 @@ void main(void)
                     ac.targetAngle = internal_target_angle;
                     ac.time = currentTime();
                     current_command_index++;
-                    previous_commands[current_command_index]=ac;
                     if(current_command_index>=COMMAND_MAX_COUNT)
                         current_command_index = 0;
+                    previous_commands[current_command_index]=ac;
                 }
                 int16_t currentAngle = previous_angles[current_angle_index].angleRead;
                 int16_t angleApprox = currentAngle / 30 - currentAngle / 2671; //Taylor series approximation of angle/(65536/2160)
@@ -168,8 +168,6 @@ void main(void)
                 int i;
                 int16_t currentAngle = previous_angles[current_angle_index].angleRead;
                 int64_t currenttime = currentTime();
-                int16_t deltaAngle = -8192-currentAngle;
-                int64_t deltaTime = (abs((int32_t)deltaAngle)*32768)/151;
                 for(i = 0;i<3;i++) {
                     struct AngleCommand ac;
                     if(currentAngle<-8192) {
@@ -180,7 +178,7 @@ void main(void)
                     ac.time = currenttime + 32768* i;
                     previous_commands[i+2]=ac;
                 }
-                current_command_index = 3;
+                current_command_index = 4;
             }
         }
 
@@ -195,19 +193,21 @@ void main(void)
         }
         //velocity test
         if(vtest==1) {
-            if(previous_angles[current_angle_index].angleRead<-8192) {
-                int i;
-                int16_t currentAngle = previous_angles[current_angle_index].angleRead;
+            int16_t currentAngle = previous_angles[current_angle_index].angleRead;
+            if(currentAngle<-8192) {
                 int64_t currenttime = currentTime();
+                int16_t deltaAngle = -8192-currentAngle;
+                int64_t deltaTime = (abs((int32_t)deltaAngle)*32768)/151;
+                int i;
                 for(i = 0;i<3;i++) {
                     struct AngleCommand ac;
-                    ac.targetAngle = currentAngle + 152*i;
-                    ac.time = currenttime + 32768 * i;
-                    previous_commands[i+1]=ac;
+                        ac.targetAngle = currentAngle + 152*i;
+                    ac.time = currenttime + 32768* i;
+                    previous_commands[i+2]=ac;
                 }
-                vtest = 2;
+                vtest=2;
+                current_command_index = 4;
             }
-            current_command_index = 3;
 
 
         } else if (vtest==2) {
@@ -220,7 +220,7 @@ void main(void)
                     previous_commands[i]=ac;
                 vtest=0;
             }
-            current_command_index = 3;
+            current_command_index = 4;
 
         }
 
@@ -304,15 +304,31 @@ int16_t getPWMRequired() {
              velocityTarget=velocityTargetNew;
          }
      }
-
-     //Want to be in line with tracking 5 seconds from now (will take longer to properly converge)
-     int64_t targetTime = currentADCTime + 5*32768;
-     //Predict future target angle based on most recent command and the target velocity
-     int16_t targetAngle = currentCommandAngle+(velocityTarget*(targetTime-currentCommandTime))/32768;
-     //Velocity required to make it to the target angle at the target time
-     velocityRequired=(currentADCAngle-targetAngle)*32768/(currentADCTime-targetTime);
+     if(velocityTarget==0) {
+         //Predict future target angle based on most recent command and the target velocity
+         int16_t targetAngle = currentCommandAngle;
+         //Want to be in line with tracking 5 seconds from now (will take longer to properly converge)
+         int64_t targetTime = currentADCTime + 32768*(abs((int32_t)(currentCommandAngle-currentADCAngle)))/151;
+         //Velocity required to make it to the target angle at the target time
+         if(targetTime-currentADCTime>32768) {
+             velocityRequired=(currentADCAngle-targetAngle)*32768/(currentADCTime-targetTime);
+         } else {
+             velocityRequired=0;
+         }
+     } else {
+         //Want to be in line with tracking 5 seconds from now (will take longer to properly converge)
+         int64_t targetTime = currentADCTime + 5*32768;
+         //Predict future target angle based on most recent command and the target velocity
+         int16_t targetAngle = currentCommandAngle+(velocityTarget*(targetTime-currentCommandTime))/32768;
+         //Velocity required to make it to the target angle at the target time
+         if(targetTime-currentADCTime>32768) {
+             velocityRequired=(currentADCAngle-targetAngle)*32768/(currentADCTime-targetTime);
+         } else {
+             velocityRequired=0;
+         }
+     }
      //Acceleration function to make movement smooth and reduce power spikes
-     int32_t acceleration = getAcceleration(velocityRequired, velocityTarget, velocityCurrent, 3, 2, 5);
+     int32_t acceleration = getAcceleration(velocityRequired, velocityTarget, velocityCurrent, 5, 2, 5);
      //Limit acceleration to prevent a significant amount of jerk
      //max: 5 degrees/s^2
      //5 degrees = 5*65536/2160 = 151 steps
